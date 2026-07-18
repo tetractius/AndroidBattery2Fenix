@@ -40,9 +40,10 @@ class PhoneBatteryView extends WatchUi.View {
         var mins = BatteryData.ageMinutes(info);
         var color = BatteryData.levelColor(level, charging);
 
-        // Big percentage
+        // Big battery range, e.g. "75-80%"
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(cx, (h * 2) / 5, Graphics.FONT_NUMBER_HOT, level + "%",
+        dc.drawText(cx, (h * 2) / 5, Graphics.FONT_NUMBER_MEDIUM,
+            BatteryData.formatRange(level),
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
 
         // Battery gauge

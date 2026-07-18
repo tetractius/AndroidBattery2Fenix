@@ -47,6 +47,16 @@ class BatteryForwardService : Service() {
         private const val NOTIFICATION_ID = 1
         private const val HEARTBEAT_MS = 15 * 60 * 1000L
 
+        /**
+         * Battery-saving knobs: only send when the level crosses into a new
+         * STEP_PCT band (the watch displays a range anyway), and never more
+         * than once per MIN_SEND_INTERVAL_MS. A charging-state change always
+         * sends immediately. Fewer sends = fewer background wakes on the
+         * watch.
+         */
+        private const val STEP_PCT = 5
+        private const val MIN_SEND_INTERVAL_MS = 60_000L
+
         fun start(context: Context) {
             ContextCompat.startForegroundService(
                 context, Intent(context, BatteryForwardService::class.java)
@@ -62,8 +72,9 @@ class BatteryForwardService : Service() {
     private val watchApp = IQApp(WATCH_APP_ID)
     private var sdkReady = false
 
-    private var lastSentLevel = -1
+    private var lastSentBucket = -1
     private var lastSentCharging = false
+    private var lastSentAt = 0L
 
     private val handler = Handler(Looper.getMainLooper())
 
@@ -133,8 +144,18 @@ class BatteryForwardService : Service() {
         val charging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
             status == BatteryManager.BATTERY_STATUS_FULL
 
-        if (!force && pct == lastSentLevel && charging == lastSentCharging) return
+        if (!force && charging == lastSentCharging) {
+            if (pct / STEP_PCT == lastSentBucket) return
+            if (System.currentTimeMillis() - lastSentAt < MIN_SEND_INTERVAL_MS) return
+        }
         sendToWatch(pct, charging)
+    }
+
+    /** 77 -> "75-80%", 100 -> "100%" — mirrors what the watch displays. */
+    private fun rangeLabel(pct: Int): String {
+        if (pct >= 100) return "100%"
+        val lower = pct / STEP_PCT * STEP_PCT
+        return "$lower-${lower + STEP_PCT}%"
     }
 
     private fun sendToWatch(pct: Int, charging: Boolean) {
@@ -163,10 +184,11 @@ class BatteryForwardService : Service() {
             }
         }
 
-        lastSentLevel = pct
+        lastSentBucket = pct / STEP_PCT
         lastSentCharging = charging
+        lastSentAt = System.currentTimeMillis()
         val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
-        updateNotification(getString(R.string.status_sent, pct, time))
+        updateNotification(getString(R.string.status_sent, rangeLabel(pct), time))
     }
 
     private fun createNotificationChannel() {
