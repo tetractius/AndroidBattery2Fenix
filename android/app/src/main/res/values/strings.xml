@@ -7,7 +7,7 @@
     <string name="status_stopped">Forwarding stopped</string>
     <string name="status_no_device">No Garmin watch connected</string>
     <string name="status_sdk_error">Garmin Connect error: %1$s</string>
-    <string name="status_sent">%1$d%% sent at %2$s</string>
+    <string name="status_sent">%1$s sent at %2$s</string>
     <string name="start_forwarding">Start forwarding</string>
     <string name="stop_forwarding">Stop forwarding</string>
     <string name="intro">Forwards your phone battery level to the “Phone Battery” widget on your Garmin fenix 8. Keep Garmin Connect installed and paired.</string>

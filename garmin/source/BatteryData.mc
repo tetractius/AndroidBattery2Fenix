@@ -52,6 +52,15 @@ module BatteryData {
         return age / 60;
     }
 
+    // Display the level as a 5% band: 77 -> "75-80%", 100 -> "100%".
+    function formatRange(level) {
+        if (level >= 100) {
+            return "100%";
+        }
+        var lower = (level / 5) * 5;
+        return lower + "-" + (lower + 5) + "%";
+    }
+
     function formatAge(mins) {
         if (mins == null) {
             return "";

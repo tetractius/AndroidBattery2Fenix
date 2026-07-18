@@ -8,7 +8,7 @@ The project has two parts, and you need **both**:
 
 | Part | Path | What it is |
 |------|------|------------|
-| Watch widget | [`garmin/`](garmin/) | A Connect IQ *glance-capable widget* ("Phone Battery"). The glance shows `78% ▮▮▮▯` at a glance; opening it shows a full-screen view with charging state and data age. |
+| Watch widget | [`garmin/`](garmin/) | A Connect IQ *glance-capable widget* ("Phone Battery"). The glance shows the battery as a 5% band, e.g. `75-80% ▮▮▮▯`; opening it shows a full-screen view with charging state and data age. |
 | Android companion | [`android/`](android/) | A small app ("Battery2Fenix") that watches the phone battery and pushes every change to the watch through the Garmin Connect Mobile app. |
 
 ## How it works
@@ -25,8 +25,14 @@ Android phone                        Garmin fēnix 8
 
 Garmin watches cannot query the phone battery themselves — the Connect IQ API
 has no such call — so the companion app is mandatory. It sends
-`{"level": 0-100, "charging": true/false}` messages whenever the percentage or
-charging state changes (plus a 15-minute heartbeat). On the watch, a Connect IQ
+`{"level": 0-100, "charging": true/false}` messages whenever the battery
+crosses into a new 5% band or the charging state changes — throttled to at
+most one message per minute, plus a 15-minute heartbeat. Every message wakes
+a small background service on the watch, so sending sparsely keeps the impact
+on the watch battery negligible; the watch displays a 5% range
+(`75-80%`) anyway, so nothing is lost. The thresholds are constants
+(`STEP_PCT`, `MIN_SEND_INTERVAL_MS`, `HEARTBEAT_MS`) at the top of
+`BatteryForwardService.kt` if you want to tune them. On the watch, a Connect IQ
 *background service* receives these messages **even while the widget is
 closed**, stores the latest value, and the glance simply renders whatever was
 stored last — so opening the glance is instant. If the data is older than

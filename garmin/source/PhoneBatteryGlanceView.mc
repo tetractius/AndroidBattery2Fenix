@@ -35,16 +35,16 @@ class PhoneBatteryGlanceView extends WatchUi.GlanceView {
         var mins = BatteryData.ageMinutes(info);
         var stale = (mins != null) && (mins > 120);
 
-        // Percentage
+        // Battery range, e.g. "75-80%"
         dc.setColor(stale ? Graphics.COLOR_LT_GRAY : Graphics.COLOR_WHITE,
             Graphics.COLOR_TRANSPARENT);
-        var pctText = level + "%" + (charging ? " +" : "");
+        var pctText = BatteryData.formatRange(level) + (charging ? " +" : "");
         dc.drawText(0, (h * 3) / 4, Graphics.FONT_GLANCE_NUMBER, pctText,
             Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
 
-        // Battery gauge on the right half of the bottom line
-        var barX = w / 2;
-        var barW = (w * 2) / 5;
+        // Battery gauge at the right edge of the bottom line
+        var barX = (w * 7) / 10;
+        var barW = w / 4;
         var barH = h / 5;
         var barY = (h * 3) / 4 - barH / 2;
 
