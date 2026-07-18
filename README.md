@@ -59,9 +59,44 @@ one, change the other.
 
 ### Build & sideload (no store needed)
 
+#### Option A — VS Code
+
 1. Open the `garmin/` folder in VS Code.
 2. `Ctrl+Shift+P → Monkey C: Build for Device`, pick your exact model
    (e.g. *fēnix 8 47mm*) and an output folder. You get a `.prg` file.
+
+#### Option B — Command line (macOS)
+
+Install the **Connect IQ SDK Manager** from developer.garmin.com, use it to
+install the SDK (tested with 9.2.0) and the fēnix 8 device profiles, then
+add `monkeyc` to your PATH:
+
+```bash
+# adjust the version string if you installed a different SDK
+export PATH="$HOME/Library/Application Support/Garmin/ConnectIQ/Sdks/connectiq-sdk-mac-9.2.0-2026-06-09-92a1605b2/bin:$PATH"
+```
+
+Generate a developer key once:
+
+```bash
+openssl genrsa -out ~/garmin_dev.pem 4096
+openssl pkcs8 -topk8 -inform PEM -outform DER -in ~/garmin_dev.pem -out ~/garmin_dev.der -nocrypt
+```
+
+Build for all supported fēnix 8 variants:
+
+```bash
+cd garmin/
+mkdir -p build
+for device in fenix843mm fenix847mm fenix8solar47mm fenix8solar51mm; do
+  monkeyc -f monkey.jungle -d "$device" -o "build/$device.prg" -y ~/garmin_dev.der
+done
+```
+
+The `.prg` files land in `garmin/build/`.
+
+#### Sideloading
+
 3. Connect the watch over USB (it mounts as a drive) and copy the `.prg`
    into the watch's `/GARMIN/Apps` folder. Unplug — done.
 
@@ -91,11 +126,14 @@ ids are shown in the SDK Manager's device list.
 
 ### Prerequisites
 
-* [Android Studio](https://developer.android.com/studio) (any recent version).
+* Java 17 (Gradle 8.7 requires it — Java 18+ will fail). Install with
+  `brew install --cask temurin@17` on macOS.
 * The **Garmin Connect** app installed on your phone and paired with your
   fēnix 8 (you almost certainly have this already).
 
 ### Build & install
+
+#### Option A — Android Studio
 
 1. Open the `android/` folder in Android Studio (File → Open).
 2. Let Gradle sync — the Garmin Connect IQ Mobile SDK
@@ -104,6 +142,16 @@ ids are shown in the SDK Manager's device list.
 3. Enable *Developer options → USB debugging* on your phone, plug it in and
    press **Run ▶**. (Or *Build → Build APK*, copy the APK to the phone and
    install it — you'll need to allow "install from unknown sources".)
+
+#### Option B — Command line (macOS)
+
+```bash
+export JAVA_HOME=$(/usr/libexec/java_home -v 17)
+cd android/
+./gradlew assembleDebug
+```
+
+The APK lands at `android/app/build/outputs/apk/debug/app-debug.apk`.
 4. Launch **Battery2Fenix** on the phone. It asks for notification permission
    (needed for its persistent "forwarding" notification) and starts the
    forwarding service automatically. The notification shows what was last
