@@ -1,0 +1,22 @@
+# Connect IQ
+garmin/bin/
+garmin/gen/
+garmin/*.prg
+garmin/*.iq
+*.mir
+
+# Android / Gradle
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/captures/
+*.apk
+*.aab
+*.keystore
+*.jks
+!android/gradle/wrapper/gradle-wrapper.jar
+
+# Misc
+.DS_Store
