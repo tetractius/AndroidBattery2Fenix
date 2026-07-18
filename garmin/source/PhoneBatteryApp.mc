@@ -36,7 +36,7 @@ class PhoneBatteryApp extends Application.AppBase {
         return [new PhoneBatteryBackgroundService()];
     }
 
-    function onPhoneMessage(msg) {
+    function onPhoneMessage(msg as Communications.PhoneAppMessage) as Void {
         BatteryData.saveFromMessage(msg.data);
         WatchUi.requestUpdate();
     }
