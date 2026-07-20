@@ -6,7 +6,7 @@
         name="@Strings.AppName"
         entry="PhoneBatteryApp"
         launcherIcon="@Drawables.LauncherIcon"
-        minApiLevel="3.2.0">
+        minApiLevel="3.4.0">
         <iq:products>
             <iq:product id="fenix843mm"/>
             <iq:product id="fenix847mm"/>

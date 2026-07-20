@@ -3,4 +3,7 @@
     <string id="NoData">No phone data</string>
     <string id="Charging">Charging</string>
     <string id="LastUpdate">Updated</string>
+    <string id="SoundNormal">Normal ring</string>
+    <string id="SoundVibrate">Vibrate only</string>
+    <string id="SoundSilent">Silent / Mute</string>
 </strings>
