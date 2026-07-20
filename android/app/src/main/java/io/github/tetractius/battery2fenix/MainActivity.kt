@@ -18,8 +18,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var batteryText: TextView
     private lateinit var statusText: TextView
 
-    private val notificationPermission =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    private val permissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            // Once permissions are resolved (granted or denied), try starting the service.
+            BatteryForwardService.start(this)
+            statusText.text = getString(R.string.status_forwarding)
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,16 +41,25 @@ class MainActivity : AppCompatActivity() {
             statusText.text = getString(R.string.status_stopped)
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        val neededPermissions = buildList {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+            ) add(Manifest.permission.POST_NOTIFICATIONS)
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.BLUETOOTH_CONNECT)
+                != PackageManager.PERMISSION_GRANTED
+            ) add(Manifest.permission.BLUETOOTH_CONNECT)
         }
 
-        // Start forwarding right away on first launch.
-        BatteryForwardService.start(this)
-        statusText.text = getString(R.string.status_forwarding)
+        if (neededPermissions.isNotEmpty()) {
+            permissionLauncher.launch(neededPermissions.toTypedArray())
+        } else {
+            // All permissions already granted — start right away.
+            BatteryForwardService.start(this)
+            statusText.text = getString(R.string.status_forwarding)
+        }
     }
 
     override fun onResume() {
