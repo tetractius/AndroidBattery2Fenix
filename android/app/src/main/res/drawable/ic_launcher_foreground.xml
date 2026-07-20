@@ -1,0 +1,18 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- phone outline -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M40,26h28c2.2,0 4,1.8 4,4v48c0,2.2 -1.8,4 -4,4H40c-2.2,0 -4,-1.8 -4,-4V30C36,27.8 37.8,26 40,26zM40,32v40h28V32H40z" />
+    <!-- battery fill -->
+    <path
+        android:fillColor="#4CD964"
+        android:pathData="M44,50h20v18H44z" />
+    <!-- battery terminal -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M50,44h8v4h-8z" />
+</vector>
