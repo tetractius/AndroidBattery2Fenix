@@ -75,5 +75,25 @@ class PhoneBatteryView extends WatchUi.View {
         }
         dc.drawText(cx, (h * 3) / 4, Graphics.FONT_XTINY, status,
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+
+        // Sound mode row: label on the left, SELECT hint on the right
+        var soundMode = BatteryData.getSoundMode();
+        var soundLabel = soundModeLabel(soundMode);
+        var soundColor = soundModeColor(soundMode);
+        dc.setColor(soundColor, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(cx, (h * 7) / 8, Graphics.FONT_XTINY, soundLabel,
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+    }
+
+    private function soundModeLabel(mode as Lang.Number) as Lang.String {
+        if (mode == 1) { return WatchUi.loadResource(Rez.Strings.SoundVibrate) as Lang.String; }
+        if (mode == 2) { return WatchUi.loadResource(Rez.Strings.SoundSilent) as Lang.String; }
+        return WatchUi.loadResource(Rez.Strings.SoundNormal) as Lang.String;
+    }
+
+    private function soundModeColor(mode as Lang.Number) as Lang.Number {
+        if (mode == 1) { return 0xFFAA00; } // orange — vibrate
+        if (mode == 2) { return 0xFF4444; } // red — silent
+        return 0x00AA00;                     // green — normal
     }
 }

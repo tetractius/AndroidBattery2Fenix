@@ -1,6 +1,7 @@
 # Connect IQ
 garmin/bin/
 garmin/gen/
+garmin/build/
 garmin/*.prg
 garmin/*.iq
 *.mir
