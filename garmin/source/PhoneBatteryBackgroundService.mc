@@ -1,4 +1,5 @@
 import Toybox.Background;
+import Toybox.Communications;
 import Toybox.Lang;
 import Toybox.System;
 
@@ -12,7 +13,7 @@ class PhoneBatteryBackgroundService extends System.ServiceDelegate {
         ServiceDelegate.initialize();
     }
 
-    function onPhoneAppMessage(msg) {
+    function onPhoneAppMessage(msg as Communications.PhoneAppMessage) as Void {
         BatteryData.saveFromMessage(msg.data);
         Background.exit(null);
     }

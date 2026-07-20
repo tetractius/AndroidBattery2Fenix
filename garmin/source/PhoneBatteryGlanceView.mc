@@ -18,14 +18,17 @@ class PhoneBatteryGlanceView extends WatchUi.GlanceView {
         var w = dc.getWidth();
         var h = dc.getHeight();
 
+        // Row 1 (top): title + age
+        var rowTop = h / 5;
         dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(0, h / 4, Graphics.FONT_GLANCE, "PHONE BATTERY",
+        dc.drawText(0, rowTop, Graphics.FONT_GLANCE, "PHONE BATTERY",
             Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
 
         var info = BatteryData.get();
         if (info == null) {
+            // Row 2: no-data placeholder
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(0, (h * 3) / 4, Graphics.FONT_GLANCE_NUMBER, "--%",
+            dc.drawText(0, h / 2, Graphics.FONT_GLANCE_NUMBER, "--%",
                 Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
             return;
         }
@@ -35,29 +38,32 @@ class PhoneBatteryGlanceView extends WatchUi.GlanceView {
         var mins = BatteryData.ageMinutes(info);
         var stale = (mins != null) && (mins > 120);
 
-        // Battery range text
+        if (mins != null && mins >= 1) {
+            dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(w, rowTop, Graphics.FONT_GLANCE, BatteryData.formatAge(mins),
+                Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
+        }
+
+        // Row 2 (middle): battery percentage + charging bolt + gauge
+        var rowMid = h / 2;
         dc.setColor(stale ? Graphics.COLOR_LT_GRAY : Graphics.COLOR_WHITE,
             Graphics.COLOR_TRANSPARENT);
         var pctText = BatteryData.formatRange(level);
-        var textY = (h * 3) / 4;
-        dc.drawText(0, textY, Graphics.FONT_GLANCE_NUMBER, pctText,
+        dc.drawText(0, rowMid, Graphics.FONT_GLANCE_NUMBER, pctText,
             Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
 
-        // Charging bolt icon drawn right after the text
         if (charging) {
             var dims = dc.getTextDimensions(pctText, Graphics.FONT_GLANCE_NUMBER);
-            drawChargingBolt(dc, dims[0] + 4, textY - 8);
+            drawChargingBolt(dc, dims[0] + 4, rowMid - 8);
         }
 
-        // Battery gauge at the right edge of the bottom line
-        var barX = (w * 7) / 10;
         var barW = w / 4;
         var barH = h / 5;
-        var barY = (h * 3) / 4 - barH / 2;
-
+        var barX = (w * 7) / 10;
+        var barY = rowMid - barH / 2;
         dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
         dc.drawRoundedRectangle(barX, barY, barW, barH, 2);
-        dc.fillRectangle(barX + barW, barY + barH / 3, 2, barH / 3); // terminal
+        dc.fillRectangle(barX + barW, barY + barH / 3, 2, barH / 3);
 
         var fillW = ((barW - 4) * level) / 100;
         if (fillW > 0) {
@@ -66,12 +72,23 @@ class PhoneBatteryGlanceView extends WatchUi.GlanceView {
             dc.fillRectangle(barX + 2, barY + 2, fillW, barH - 4);
         }
 
-        // Age of the data, above the gauge
-        if (mins != null && mins >= 1) {
-            dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(w, h / 4, Graphics.FONT_GLANCE, BatteryData.formatAge(mins),
-                Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
-        }
+        // Row 3 (bottom): sound mode
+        var soundMode = BatteryData.getSoundMode();
+        dc.setColor(soundModeColor(soundMode), Graphics.COLOR_TRANSPARENT);
+        dc.drawText(0, (h * 4) / 5, Graphics.FONT_GLANCE, soundModeLabel(soundMode),
+            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+    }
+
+    private function soundModeLabel(mode as Lang.Number) as Lang.String {
+        if (mode == 1) { return "VIB"; }
+        if (mode == 2) { return "MUT"; }
+        return "NRM";
+    }
+
+    private function soundModeColor(mode as Lang.Number) as Lang.Number {
+        if (mode == 1) { return 0xFFAA00; } // orange — vibrate
+        if (mode == 2) { return 0xFF4444; } // red — silent
+        return 0x00AA00;                     // green — normal
     }
 
     // Draws a small yellow lightning bolt (⚡) at (bx, by).
