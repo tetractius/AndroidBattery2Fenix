@@ -44,6 +44,16 @@ for device in fenix843mm fenix847mm fenix8solar47mm fenix8solar51mm; do
 done
 ```
 
+### Compile (release — strip debug info, use for sideloading and store submission)
+
+```bash
+cd garmin/
+mkdir -p build
+for device in fenix843mm fenix847mm fenix8solar47mm fenix8solar51mm; do
+  monkeyc -f monkey.jungle -d "$device" -o "build/$device.prg" -y ~/garmin_dev.der -r
+done
+```
+
 ### Known issue — SDK 9.2.0 type checking
 
 SDK 9.2.0 enforces strict types on `Communications.registerForPhoneAppMessages`.

@@ -11,7 +11,7 @@ class PhoneBatteryGlanceView extends WatchUi.GlanceView {
         GlanceView.initialize();
     }
 
-    function onUpdate(dc) {
+    function onUpdate(dc as Graphics.Dc) as Void {
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
         dc.clear();
 
@@ -35,12 +35,19 @@ class PhoneBatteryGlanceView extends WatchUi.GlanceView {
         var mins = BatteryData.ageMinutes(info);
         var stale = (mins != null) && (mins > 120);
 
-        // Battery range, e.g. "75-80%"
+        // Battery range text
         dc.setColor(stale ? Graphics.COLOR_LT_GRAY : Graphics.COLOR_WHITE,
             Graphics.COLOR_TRANSPARENT);
-        var pctText = BatteryData.formatRange(level) + (charging ? " +" : "");
-        dc.drawText(0, (h * 3) / 4, Graphics.FONT_GLANCE_NUMBER, pctText,
+        var pctText = BatteryData.formatRange(level);
+        var textY = (h * 3) / 4;
+        dc.drawText(0, textY, Graphics.FONT_GLANCE_NUMBER, pctText,
             Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+
+        // Charging bolt icon drawn right after the text
+        if (charging) {
+            var dims = dc.getTextDimensions(pctText, Graphics.FONT_GLANCE_NUMBER);
+            drawChargingBolt(dc, dims[0] + 4, textY - 8);
+        }
 
         // Battery gauge at the right edge of the bottom line
         var barX = (w * 7) / 10;
@@ -65,5 +72,17 @@ class PhoneBatteryGlanceView extends WatchUi.GlanceView {
             dc.drawText(w, h / 4, Graphics.FONT_GLANCE, BatteryData.formatAge(mins),
                 Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
         }
+    }
+
+    // Draws a small yellow lightning bolt (⚡) at (bx, by).
+    // The bolt is ~8px wide and 16px tall, drawn as three thick line segments.
+    private function drawChargingBolt(dc as Graphics.Dc, bx as Number, by as Number) as Void {
+        var mid = 8;
+        dc.setPenWidth(2);
+        dc.setColor(0xFFAA00, Graphics.COLOR_TRANSPARENT);
+        dc.drawLine(bx + 6, by,       bx + 1, by + mid);   // top-right → mid-left
+        dc.drawLine(bx + 1, by + mid, bx + 5, by + mid);   // step right
+        dc.drawLine(bx + 5, by + mid, bx,     by + 16);    // mid-right → bottom-left
+        dc.setPenWidth(1);
     }
 }
