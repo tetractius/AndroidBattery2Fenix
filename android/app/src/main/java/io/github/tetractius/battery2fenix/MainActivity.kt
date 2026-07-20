@@ -97,14 +97,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateLed() {
-        val color = when (BatteryForwardService.state) {
-            BatteryForwardService.State.STOPPED    -> Color.RED
-            BatteryForwardService.State.CONNECTING -> Color.YELLOW
-            BatteryForwardService.State.RUNNING    -> Color.GREEN
+        val (color, text) = when (BatteryForwardService.state) {
+            BatteryForwardService.State.STOPPED    -> Color.RED    to getString(R.string.status_stopped)
+            BatteryForwardService.State.CONNECTING -> Color.YELLOW to getString(R.string.status_connecting)
+            BatteryForwardService.State.RUNNING    -> Color.GREEN  to getString(R.string.status_forwarding)
         }
         val drawable = GradientDrawable()
         drawable.shape = GradientDrawable.OVAL
         drawable.setColor(color)
         statusLed.background = drawable
+        statusText.text = text
     }
 }
