@@ -4,9 +4,14 @@ import android.Manifest
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.View
 import android.widget.Button
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
@@ -17,12 +22,22 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var batteryText: TextView
     private lateinit var statusText: TextView
+    private lateinit var statusLed: View
+
+    private val handler = Handler(Looper.getMainLooper())
+
+    private val ledUpdater = object : Runnable {
+        override fun run() {
+            updateLed()
+            handler.postDelayed(this, 1000)
+        }
+    }
 
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-            // Once permissions are resolved (granted or denied), try starting the service.
             BatteryForwardService.start(this)
-            statusText.text = getString(R.string.status_forwarding)
+            statusText.text = getString(R.string.status_connecting)
+            updateLed()
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -31,14 +46,17 @@ class MainActivity : AppCompatActivity() {
 
         batteryText = findViewById(R.id.batteryText)
         statusText = findViewById(R.id.statusText)
+        statusLed = findViewById(R.id.statusLed)
 
         findViewById<Button>(R.id.startButton).setOnClickListener {
             BatteryForwardService.start(this)
-            statusText.text = getString(R.string.status_forwarding)
+            statusText.text = getString(R.string.status_connecting)
+            updateLed()
         }
         findViewById<Button>(R.id.stopButton).setOnClickListener {
             BatteryForwardService.stop(this)
             statusText.text = getString(R.string.status_stopped)
+            updateLed()
         }
 
         val neededPermissions = buildList {
@@ -56,9 +74,9 @@ class MainActivity : AppCompatActivity() {
         if (neededPermissions.isNotEmpty()) {
             permissionLauncher.launch(neededPermissions.toTypedArray())
         } else {
-            // All permissions already granted — start right away.
             BatteryForwardService.start(this)
-            statusText.text = getString(R.string.status_forwarding)
+            statusText.text = getString(R.string.status_connecting)
+            updateLed()
         }
     }
 
@@ -70,5 +88,23 @@ class MainActivity : AppCompatActivity() {
         if (level >= 0 && scale > 0) {
             batteryText.text = getString(R.string.battery_now, level * 100 / scale)
         }
+        handler.post(ledUpdater)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        handler.removeCallbacks(ledUpdater)
+    }
+
+    private fun updateLed() {
+        val color = when (BatteryForwardService.state) {
+            BatteryForwardService.State.STOPPED    -> Color.RED
+            BatteryForwardService.State.CONNECTING -> Color.YELLOW
+            BatteryForwardService.State.RUNNING    -> Color.GREEN
+        }
+        val drawable = GradientDrawable()
+        drawable.shape = GradientDrawable.OVAL
+        drawable.setColor(color)
+        statusLed.background = drawable
     }
 }

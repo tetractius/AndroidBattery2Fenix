@@ -34,18 +34,18 @@ import java.util.Locale
  */
 class BatteryForwardService : Service() {
 
+    enum class State { STOPPED, CONNECTING, RUNNING }
+
     companion object {
         private const val TAG = "BatteryForward"
 
-        /**
-         * Connect IQ application id of the watch widget.
-         * Must match the `id` attribute in garmin/manifest.xml.
-         */
         const val WATCH_APP_ID = "a57999dd5a9942a5a9a35acb96ff49e1"
 
         private const val CHANNEL_ID = "battery_forward"
         private const val NOTIFICATION_ID = 1
         private const val HEARTBEAT_MS = 15 * 60 * 1000L
+
+        @Volatile var state: State = State.STOPPED
 
         /**
          * Battery-saving knobs: only send when the level crosses into a new
@@ -95,6 +95,7 @@ class BatteryForwardService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        state = State.CONNECTING
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.status_connecting)))
 
@@ -104,6 +105,7 @@ class BatteryForwardService : Service() {
         connectIQ.initialize(this, false, object : ConnectIQ.ConnectIQListener {
             override fun onSdkReady() {
                 sdkReady = true
+                state = State.RUNNING
                 Log.i(TAG, "Connect IQ SDK ready")
                 updateNotification(getString(R.string.status_forwarding))
                 currentBatteryIntent()?.let { maybeSend(it, force = true) }
@@ -125,6 +127,7 @@ class BatteryForwardService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
     override fun onDestroy() {
+        state = State.STOPPED
         handler.removeCallbacks(heartbeat)
         runCatching { unregisterReceiver(batteryReceiver) }
         runCatching { connectIQ.shutdown(this) }
