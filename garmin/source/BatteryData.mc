@@ -5,14 +5,19 @@ import Toybox.Time;
 // Shared persistence for the phone battery state. Runs in the background
 // service, the glance and the full widget, so everything here must be
 // annotated for all three scopes.
+// Sound mode constants (mirrored on the Android side):
+//   SOUND_NORMAL  = 0  — full ring + vibration
+//   SOUND_VIBRATE = 1  — vibrate only, no ring
+//   SOUND_SILENT  = 2  — no sound, no vibration (needs DND permission on Android)
 (:background :glance)
 module BatteryData {
 
     const KEY = "phoneBattery";
+    const SOUND_KEY = "soundMode";
 
     // Message payload from the Android companion app:
-    //   { "level" => 0..100, "charging" => true/false }
-    function saveFromMessage(data) {
+    //   { "level" => 0..100, "charging" => true/false, "soundMode" => 0/1/2 }
+    function saveFromMessage(data as Lang.Object?) as Void {
         if (!(data instanceof Lang.Dictionary)) {
             return;
         }
@@ -30,6 +35,20 @@ module BatteryData {
             "charging" => data["charging"] == true,
             "ts" => Time.now().value()
         });
+        // Sound mode is stored separately so the watch can update it
+        // independently of the battery data.
+        var soundMode = data["soundMode"];
+        if (soundMode instanceof Lang.Number && soundMode >= 0 && soundMode <= 2) {
+            Storage.setValue(SOUND_KEY, soundMode);
+        }
+    }
+
+    function getSoundMode() as Lang.Number {
+        var mode = Storage.getValue(SOUND_KEY);
+        if (mode instanceof Lang.Number) {
+            return mode;
+        }
+        return 0;
     }
 
     function get() {

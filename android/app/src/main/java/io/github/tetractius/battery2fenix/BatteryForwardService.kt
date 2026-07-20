@@ -9,6 +9,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.media.AudioManager
 import android.os.BatteryManager
 import android.os.Handler
 import android.os.IBinder
@@ -68,6 +69,7 @@ class BatteryForwardService : Service() {
         }
     }
 
+    private lateinit var audioManager: AudioManager
     private lateinit var connectIQ: ConnectIQ
     private val watchApp = IQApp(WATCH_APP_ID)
     private var sdkReady = false
@@ -84,6 +86,12 @@ class BatteryForwardService : Service() {
         }
     }
 
+    private val ringerReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            currentBatteryIntent()?.let { maybeSend(it, force = true) }
+        }
+    }
+
     private val heartbeat = object : Runnable {
         override fun run() {
             currentBatteryIntent()?.let { maybeSend(it, force = true) }
@@ -96,10 +104,12 @@ class BatteryForwardService : Service() {
     override fun onCreate() {
         super.onCreate()
         state = State.CONNECTING
+        audioManager = getSystemService(AudioManager::class.java)
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.status_connecting)))
 
         registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        registerReceiver(ringerReceiver, IntentFilter(AudioManager.RINGER_MODE_CHANGED_ACTION))
 
         connectIQ = ConnectIQ.getInstance(this, IQConnectType.WIRELESS)
         connectIQ.initialize(this, false, object : ConnectIQ.ConnectIQListener {
@@ -130,6 +140,7 @@ class BatteryForwardService : Service() {
         state = State.STOPPED
         handler.removeCallbacks(heartbeat)
         runCatching { unregisterReceiver(batteryReceiver) }
+        runCatching { unregisterReceiver(ringerReceiver) }
         runCatching { connectIQ.shutdown(this) }
         super.onDestroy()
     }
@@ -154,6 +165,13 @@ class BatteryForwardService : Service() {
         sendToWatch(pct, charging)
     }
 
+    /** Maps AudioManager ringer mode to the watch constant (0=Normal,1=Vibrate,2=Silent). */
+    private fun currentSoundMode(): Int = when (audioManager.ringerMode) {
+        AudioManager.RINGER_MODE_VIBRATE -> 1
+        AudioManager.RINGER_MODE_SILENT  -> 2
+        else                             -> 0
+    }
+
     /** 77 -> "75-80%", 100 -> "100%" — mirrors what the watch displays. */
     private fun rangeLabel(pct: Int): String {
         if (pct >= 100) return "100%"
@@ -176,7 +194,7 @@ class BatteryForwardService : Service() {
             return
         }
 
-        val message = mapOf("level" to pct, "charging" to charging)
+        val message = mapOf("level" to pct, "charging" to charging, "soundMode" to currentSoundMode())
         for (device in devices) {
             try {
                 connectIQ.sendMessage(device, watchApp, message) { _, _, status ->
