@@ -6,4 +6,8 @@
     <string id="SoundNormal">Normal ring</string>
     <string id="SoundVibrate">Vibrate only</string>
     <string id="SoundSilent">Silent / Mute</string>
+    <string id="SoundTitle">Phone sound</string>
+    <string id="SoundCurrent">Current</string>
+    <string id="SoundHint">SELECT to change</string>
+    <string id="SoundSending">Sending...</string>
 </strings>

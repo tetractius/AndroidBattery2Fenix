@@ -6,6 +6,9 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Needed to move the ringer into or out of silent, which toggles Do Not
+         Disturb. Granted by the user on a system settings screen, not at runtime. -->
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
 
     <!-- Package visibility (API 30+): we need to see Garmin Connect Mobile -->
     <queries>
