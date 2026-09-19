@@ -34,29 +34,83 @@ which changes where the app appears on the watch.
 
 ---
 
-## Ordering: Google Play first
+## 2. Decide how the Android app reaches users — do this first
 
-Not because it goes live first, but because it takes far longer and is the only
-part that is actually blocked. Garmin's review is 72 hours; Play is weeks. Do
-Play work first, prepare the Garmin assets alongside it, and time the Garmin
-submission so approval lands near the Play release rather than long before it.
+Everything downstream depends on this choice, and Google Play is only one of
+the options. Worth thinking about properly before committing weeks to it.
 
-The go-live dependency is real but narrower than "publish Android first": both
-apps are useless alone, so what matters is that they become available close
-together. Garmin keeps a submitted app hidden until approved, which gives you
-some control over that.
+**The Connect IQ Store is this app's real discovery channel.** The people who
+want this own a fēnix 8, and that is where they look. The Android app is a
+dependency of the watch app, not a product in its own right — which means it
+does not have to be on Google Play at all. It only has to be *reachable* from
+the Connect IQ listing.
 
-One idea that does **not** work: using a Garmin beta app to hand the watch app
-to Play testers. Beta apps are staged in production but "URLs to the beta will
-not be visible outside of your account", so they only reach you.
+### Option A — GitHub Releases (lowest friction)
+
+`origin` is already `github.com/tetractius/AndroidBattery2Fenix`. Attach a
+signed APK to a release and link it from the Connect IQ store description.
+
+- No review, no fee, no testers, no `targetSdk` deadline. **This alone removes
+  the section 3 blocker**, since the API 36 requirement is a Play rule, not an
+  Android one.
+- Costs: users see "install unknown apps" warnings, and there is no
+  auto-update. [Obtainium](https://github.com/ImranR98/Obtainium) solves
+  updates for users who want it, by watching GitHub releases.
+- **Time limit worth knowing:** Google is phasing in developer verification
+  for *all* install methods including sideloading — September 2026 for Brazil,
+  Indonesia, Singapore and Thailand, global in 2027. It costs a one-off US$25
+  plus government ID, roughly the same paperwork as a Play account. ADB
+  installs are explicitly unaffected. So this route is frictionless now and
+  needs a one-time verification later.
+
+### Option B — Google Play
+
+Widest reach and automatic updates, at the cost of the API 36 bump and,
+probably, the 12-tester closed test. See section 3.
+
+### Option C — Play with an organization account
+
+The 12-tester rule applies only to **personal** accounts created on or after
+13 November 2023. An organization account is exempt, but needs a D-U-N-S
+number — free to request, though it takes time to come through. Worth pricing
+against the effort of finding 12 testers.
+
+### Option D — Samsung Galaxy Store / Amazon Appstore
+
+No closed-testing requirement, free accounts. Samsung has real reach; Amazon
+has little on phones. Reasonable as a supplement, not as the main channel.
+
+### Option E — F-Droid
+
+Probably not viable, for two reasons worth checking before spending time:
+
+- **There is no `LICENSE` file in this repo.** F-Droid needs an OSI-approved
+  licence. Easy to fix — the code is yours — but it is a hard gate.
+- The Garmin `ciq-companion-app-sdk` AAR is a **proprietary binary
+  dependency**, which F-Droid's inclusion policy generally does not allow.
+  This is the likely blocker, and no licence change fixes it.
+
+### Recommendation
+
+Start with Option A and treat Play as a later nice-to-have. It gets a working
+release into users' hands in an afternoon instead of a month, and the audience
+is coming from the Connect IQ store anyway. If the app gains traction, revisit
+Play — nothing about Option A forecloses it.
+
+- [ ] Pick a route before doing any store work.
+- [ ] Add a `LICENSE` file regardless. The repo has none, which leaves the
+      code technically all-rights-reserved and blocks every open-source
+      distribution channel.
 
 ---
 
-## 2. Publish to Google Play
+## 3. Google Play — only if Option B or C
 
-**Blocked, and the long pole.** Start here.
+**Blocked** by the target API level, and the long pole. Skip this section
+entirely if the answer to section 2 was "GitHub Releases".
 
-### 2a. The blocker
+### 3a. The blocker
+
 
 `android/app/build.gradle` has `compileSdk 34` / `targetSdk 34`. Google Play
 required new apps and updates to target **API 36 (Android 16)** from
@@ -78,7 +132,7 @@ available but had to be requested in advance.
       service, the boot receiver and the ringer control are all areas where
       newer Android has tightened rules.
 
-### 2b. The 14-day closed test — check whether this applies
+### 3b. The 14-day closed test — check whether this applies
 
 If the Play Console account is a **personal** account created on or after
 13 November 2023, production access requires a closed test with **at least 12
@@ -98,7 +152,7 @@ count, and if one tester drops out the counter resets.
 - [ ] Start the closed test as soon as 2a is done; everything else can happen
       while the 14 days run.
 
-### 2c. Release build
+### 3c. Release build
 
 - [ ] Generate an upload keystore and write `android/keystore.properties`
       (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`). The gradle
@@ -112,7 +166,7 @@ count, and if one tester drops out the counter resets.
 - [ ] `./gradlew bundleRelease` — Play wants an `.aab`, not the `.apk` the
       debug flow produces.
 
-### 2d. Console paperwork
+### 3d. Console paperwork
 
 - [ ] Developer account (one-off fee).
 - [ ] Declare the foreground service. The app uses
@@ -132,10 +186,10 @@ count, and if one tester drops out the counter resets.
 
 ---
 
-## 3. Publish to the Connect IQ Store
+## 4. Publish to the Connect IQ Store
 
-Unblocked — mostly assets and paperwork. Prepare this while the Play closed
-test runs, and submit when Play is close to going live.
+This is the one that actually matters for reaching users. Unblocked — mostly
+assets and paperwork.
 
 - [ ] Create a developer account on developer.garmin.com if there is not one.
 - [ ] Decide the release scope. `garmin/manifest.xml` lists only four fēnix 8
@@ -168,7 +222,7 @@ test runs, and submit when Play is close to going live.
 
 ---
 
-## 4. Loose ends
+## 5. Loose ends
 
 - [ ] `README.md` still documents the message payload as
       `{"level", "charging"}`. It has gained `soundMode` and a watch → phone
