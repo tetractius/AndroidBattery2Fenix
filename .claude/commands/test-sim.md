@@ -132,9 +132,79 @@ with `adb shell input tap`, or via
 `adb shell am start -a android.settings.NOTIFICATION_POLICY_ACCESS_SETTINGS`.
 
 Whichever read command gives a stable, distinct value per mode is your
-assertion for Step 5. Write down the three values before proceeding.
+assertion for Steps 5 and 6. Write down the three values before proceeding.
 
-## Step 5 — The actual test
+## Step 5 — Headless tests first
+
+Before asking the human for anything, get as far as you can with
+`Toybox.Test` ("Run No Evil"), which runs in the simulator with no clicking and
+prints machine-readable pass/fail:
+
+```bash
+cd garmin
+monkeyc -f monkey.jungle -d fenix847mm -o build/test.prg -y ~/garmin_dev.der --unit-test
+monkeydo build/test.prg fenix847mm -t
+```
+
+A single test: `monkeydo build/test.prg fenix847mm -t testName`. Test code is
+stripped from debug and release builds, so these files are safe to keep — but
+put them in a new `garmin/source/SoundControlTest.mc` rather than editing
+existing sources, and ask before committing them.
+
+### 5a. Pure logic — these will work
+
+The message-handling rules are the part most likely to be subtly wrong, and they
+need no connection at all. Write tests for:
+
+- `BatteryData.saveFromMessage({"soundMode" => 2})` — a sound-only reply, no
+  battery fields. `getSoundMode()` must become 2. This is the case the old code
+  dropped on the floor, so it is worth pinning down.
+- Setting `BatteryData.pendingSoundMode = 1`, then delivering a message with
+  `soundMode` — pending must clear.
+- Delivering a message with **no** `soundMode` key — pending must NOT clear.
+- Out-of-range values (`-1`, `3`) and wrong types (`"2"`) must be ignored, not
+  stored.
+- A battery-only message must not disturb the stored sound mode.
+
+Note these mutate real `Storage`, so each test should set up its own state
+rather than assuming a clean slate.
+
+### 5b. End-to-end without clicking — try it, it may not work
+
+A `(:test)` function can call `SoundControl.request(2)` directly, which skips
+the menu entirely and fires the real `Communications.transmit`. With the ADB
+connection from Steps 2–3 live, that should reach the emulator and move the
+ringer — a full watch-code-to-phone assertion with no human involved:
+
+```monkeyc
+(:test)
+function testTransmitSilent(logger as Test.Logger) as Boolean {
+    logger.debug("transmitting silent request");
+    SoundControl.request(2);
+    return true; // the real assertion is on the phone, via adb
+}
+```
+
+Then assert with the read command you established in Step 4, polling for a few
+seconds rather than checking once.
+
+Two reasons this may legitimately fail, neither of which means the feature is
+broken — report which one you hit:
+
+- `transmit` is asynchronous and the test returns immediately, so the app may be
+  torn down before the message leaves.
+- `Communications` may not be wired up in the unit-test harness the way it is in
+  a normally-launched app.
+
+If it fails, fall back to Step 6 for the integration check. Do not spend long
+fighting it.
+
+## Step 6 — The UI path (needs the human)
+
+Whatever 5b could not cover, plus the one thing no headless test can reach:
+**whether `onSelect` actually fires in the widget view and the menu renders.**
+That is the riskiest assumption in the whole change, so even if 5b passes,
+case 1 below is still worth doing once.
 
 For each case, ask the human to drive the simulator, then assert from adb.
 
@@ -172,11 +242,12 @@ temporary `System.println` in `SoundControl.request` and in
 `BatteryData.saveFromMessage`; the simulator prints it to the console, and
 `monkeydo` streams it to stdout.
 
-## Step 6 — Clean up
+## Step 7 — Clean up
 
 1. **Revert the TETHERED edit** in `BatteryForwardService.kt` and confirm with
    `git diff` that the only remaining changes are ones the user wants.
-2. Remove any temporary `System.println` calls.
+2. Remove any temporary `System.println` calls. Unit test files are stripped
+   at build time and can stay, but ask before committing them.
 3. `adb forward --remove tcp:7381`
 4. Rebuild both sides to confirm the tree still compiles after the reverts:
    `./gradlew assembleDebug` and the four-device `monkeyc` loop from `CLAUDE.md`.
