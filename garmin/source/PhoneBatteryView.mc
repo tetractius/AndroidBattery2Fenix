@@ -76,12 +76,24 @@ class PhoneBatteryView extends WatchUi.View {
         dc.drawText(cx, (h * 3) / 4, Graphics.FONT_XTINY, status,
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
 
-        // Sound mode row: label on the left, SELECT hint on the right
-        var soundMode = BatteryData.getSoundMode();
-        var soundLabel = soundModeLabel(soundMode);
-        var soundColor = soundModeColor(soundMode);
+        // Sound mode row, with a hint that SELECT opens the picker. While a
+        // change is in flight we show the requested mode greyed out instead
+        // of the stored one, so the press feels immediate without pretending
+        // the phone has already applied it.
+        var pending = BatteryData.pendingSoundMode;
+        var soundMode = (pending != null) ? pending : BatteryData.getSoundMode();
+        var soundColor = (pending != null)
+            ? Graphics.COLOR_DK_GRAY
+            : soundModeColor(soundMode);
+
         dc.setColor(soundColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(cx, (h * 7) / 8, Graphics.FONT_XTINY, soundLabel,
+        dc.drawText(cx, (h * 5) / 6, Graphics.FONT_XTINY, soundModeLabel(soundMode),
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+
+        var hint = (pending != null) ? Rez.Strings.SoundSending : Rez.Strings.SoundHint;
+        dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(cx, (h * 15) / 16, Graphics.FONT_XTINY,
+            WatchUi.loadResource(hint),
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
     }
 

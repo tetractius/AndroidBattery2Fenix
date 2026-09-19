@@ -1,6 +1,7 @@
 package io.github.tetractius.battery2fenix
 
 import android.Manifest
+import android.app.NotificationManager
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
@@ -11,6 +12,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.view.View
 import android.widget.Button
 import android.widget.TextView
@@ -23,6 +25,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var batteryText: TextView
     private lateinit var statusText: TextView
     private lateinit var statusLed: View
+    private lateinit var dndButton: Button
 
     private val handler = Handler(Looper.getMainLooper())
 
@@ -59,6 +62,15 @@ class MainActivity : AppCompatActivity() {
             updateLed()
         }
 
+        // Switching the phone to silent from the watch toggles Do Not Disturb,
+        // which can only be granted on a system settings screen. Offer it here
+        // so the user does not have to discover it through the service's
+        // notification the first time they pick "Silent".
+        dndButton = findViewById(R.id.dndButton)
+        dndButton.setOnClickListener {
+            startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
+        }
+
         val neededPermissions = buildList {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                 ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS)
@@ -89,11 +101,19 @@ class MainActivity : AppCompatActivity() {
             batteryText.text = getString(R.string.battery_now, level * 100 / scale)
         }
         handler.post(ledUpdater)
+        updateDndButton()
     }
 
     override fun onPause() {
         super.onPause()
         handler.removeCallbacks(ledUpdater)
+    }
+
+    private fun updateDndButton() {
+        val granted = getSystemService(NotificationManager::class.java)
+            .isNotificationPolicyAccessGranted
+        dndButton.isEnabled = !granted
+        dndButton.text = getString(if (granted) R.string.dnd_granted else R.string.grant_dnd)
     }
 
     private fun updateLed() {

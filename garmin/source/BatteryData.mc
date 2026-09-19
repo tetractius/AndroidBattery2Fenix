@@ -15,12 +15,29 @@ module BatteryData {
     const KEY = "phoneBattery";
     const SOUND_KEY = "soundMode";
 
+    // Mode requested from the watch but not yet confirmed by the phone.
+    // Foreground-only display state; it is never persisted.
+    var pendingSoundMode = null;
+
     // Message payload from the Android companion app:
     //   { "level" => 0..100, "charging" => true/false, "soundMode" => 0/1/2 }
+    // The two halves are independent: the reply to a watch-initiated sound
+    // change arrives immediately and may carry no battery fields at all.
     function saveFromMessage(data as Lang.Object?) as Void {
         if (!(data instanceof Lang.Dictionary)) {
             return;
         }
+
+        // Sound mode is stored separately so the watch can update it
+        // independently of the battery data.
+        var soundMode = data["soundMode"];
+        if (soundMode instanceof Lang.Number && soundMode >= 0 && soundMode <= 2) {
+            Storage.setValue(SOUND_KEY, soundMode);
+            // The phone has answered, so any watch request is settled — even
+            // if it was refused and the mode came back unchanged.
+            pendingSoundMode = null;
+        }
+
         var level = data["level"];
         if (!(level instanceof Lang.Number)) {
             return;
@@ -35,12 +52,6 @@ module BatteryData {
             "charging" => data["charging"] == true,
             "ts" => Time.now().value()
         });
-        // Sound mode is stored separately so the watch can update it
-        // independently of the battery data.
-        var soundMode = data["soundMode"];
-        if (soundMode instanceof Lang.Number && soundMode >= 0 && soundMode <= 2) {
-            Storage.setValue(SOUND_KEY, soundMode);
-        }
     }
 
     function getSoundMode() as Lang.Number {
