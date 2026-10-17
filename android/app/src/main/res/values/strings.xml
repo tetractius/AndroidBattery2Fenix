@@ -10,5 +10,14 @@
     <string name="status_sent">%1$s sent at %2$s</string>
     <string name="start_service">Start service</string>
     <string name="stop_service">Stop service</string>
+    <string name="grant_dnd">Allow Do Not Disturb access</string>
+    <string name="dnd_granted">Do Not Disturb access granted</string>
+    <string name="dnd_channel_name">Permission needed</string>
+    <string name="dnd_needed_title">Allow Do Not Disturb access</string>
+    <string name="dnd_needed_text">Tap to let Battery2Fenix switch your phone to silent from the watch.</string>
+    <string name="status_sound_set">Sound set to %1$s from watch</string>
+    <string name="sound_normal">normal ring</string>
+    <string name="sound_vibrate">vibrate only</string>
+    <string name="sound_silent">silent</string>
     <string name="intro">Forwards your phone battery level to the “Phone Battery” widget on your Garmin fenix 8. Keep Garmin Connect installed and paired.</string>
 </resources>

@@ -14,6 +14,7 @@ import android.os.BatteryManager
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.provider.Settings
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.garmin.android.connectiq.ConnectIQ
@@ -32,6 +33,9 @@ import java.util.Locale
  * An update is sent whenever the battery percentage or charging state
  * changes, plus a periodic heartbeat so the watch can tell the data is
  * fresh.
+ *
+ * The link is two-way: the watch can ask for a sound mode change, which is
+ * applied here and answered immediately rather than on the next heartbeat.
  */
 class BatteryForwardService : Service() {
 
@@ -45,6 +49,13 @@ class BatteryForwardService : Service() {
         private const val CHANNEL_ID = "battery_forward"
         private const val NOTIFICATION_ID = 1
         private const val HEARTBEAT_MS = 15 * 60 * 1000L
+
+        /** Second channel so the permission request can actually alert the user. */
+        private const val DND_CHANNEL_ID = "dnd_request"
+        private const val DND_NOTIFICATION_ID = 2
+
+        /** Command the watch sends to change the phone's sound mode. */
+        private const val CMD_SET_SOUND_MODE = "setSoundMode"
 
         @Volatile var state: State = State.STOPPED
 
@@ -79,6 +90,36 @@ class BatteryForwardService : Service() {
     private var lastSentAt = 0L
 
     private val handler = Handler(Looper.getMainLooper())
+
+    /** Devices we currently hold an app-event registration for. */
+    private val registeredDevices = mutableListOf<IQDevice>()
+
+    /** Commands arriving from the watch widget. */
+    private val appEventListener = object : ConnectIQ.IQApplicationEventListener {
+        override fun onMessageReceived(
+            device: IQDevice,
+            app: IQApp,
+            messages: MutableList<Any>?,
+            status: ConnectIQ.IQMessageStatus
+        ) {
+            if (status != ConnectIQ.IQMessageStatus.SUCCESS) {
+                Log.w(TAG, "Bad message from ${device.friendlyName}: $status")
+                return
+            }
+            handler.post { handleWatchMessages(messages) }
+        }
+    }
+
+    /** A watch coming back into range needs its app-event registration redone. */
+    private val deviceEventListener = object : ConnectIQ.IQDeviceEventListener {
+        override fun onDeviceStatusChanged(device: IQDevice, status: IQDevice.IQDeviceStatus) {
+            Log.i(TAG, "${device.friendlyName}: $status")
+            if (status == IQDevice.IQDeviceStatus.CONNECTED) {
+                registerForWatchMessages()
+                currentBatteryIntent()?.let { maybeSend(it, force = true) }
+            }
+        }
+    }
 
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -118,6 +159,7 @@ class BatteryForwardService : Service() {
                 state = State.RUNNING
                 Log.i(TAG, "Connect IQ SDK ready")
                 updateNotification(getString(R.string.status_forwarding))
+                registerForWatchMessages()
                 currentBatteryIntent()?.let { maybeSend(it, force = true) }
             }
 
@@ -141,6 +183,11 @@ class BatteryForwardService : Service() {
         handler.removeCallbacks(heartbeat)
         runCatching { unregisterReceiver(batteryReceiver) }
         runCatching { unregisterReceiver(ringerReceiver) }
+        for (device in registeredDevices) {
+            runCatching { connectIQ.unregisterForApplicationEvents(device, watchApp) }
+            runCatching { connectIQ.unregisterForDeviceEvents(device) }
+        }
+        registeredDevices.clear()
         runCatching { connectIQ.shutdown(this) }
         super.onDestroy()
     }
@@ -180,7 +227,19 @@ class BatteryForwardService : Service() {
     }
 
     private fun sendToWatch(pct: Int, charging: Boolean) {
-        if (!sdkReady) return
+        val message = mapOf("level" to pct, "charging" to charging, "soundMode" to currentSoundMode())
+        if (!sendMessageToWatch(message)) return
+
+        lastSentBucket = pct / STEP_PCT
+        lastSentCharging = charging
+        lastSentAt = System.currentTimeMillis()
+        val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+        updateNotification(getString(R.string.status_sent, rangeLabel(pct), time))
+    }
+
+    /** Returns false when there was nobody to send to. */
+    private fun sendMessageToWatch(message: Map<String, Any>): Boolean {
+        if (!sdkReady) return false
 
         val devices: List<IQDevice> = try {
             connectIQ.connectedDevices ?: emptyList()
@@ -191,10 +250,9 @@ class BatteryForwardService : Service() {
 
         if (devices.isEmpty()) {
             updateNotification(getString(R.string.status_no_device))
-            return
+            return false
         }
 
-        val message = mapOf("level" to pct, "charging" to charging, "soundMode" to currentSoundMode())
         for (device in devices) {
             try {
                 connectIQ.sendMessage(device, watchApp, message) { _, _, status ->
@@ -204,21 +262,173 @@ class BatteryForwardService : Service() {
                 Log.w(TAG, "sendMessage failed", e)
             }
         }
-
-        lastSentBucket = pct / STEP_PCT
-        lastSentCharging = charging
-        lastSentAt = System.currentTimeMillis()
-        val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
-        updateNotification(getString(R.string.status_sent, rangeLabel(pct), time))
+        return true
     }
 
-    private fun createNotificationChannel() {
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            getString(R.string.channel_name),
-            NotificationManager.IMPORTANCE_LOW
+    // ---- Watch-initiated commands ------------------------------------------
+
+    /**
+     * Listens for messages from the widget. Device events are registered for
+     * every known watch so we hear about reconnects; app events only work on
+     * watches that are actually connected, so this is re-run on each connect.
+     */
+    private fun registerForWatchMessages() {
+        if (!sdkReady) return
+
+        val known: List<IQDevice> = try {
+            connectIQ.knownDevices ?: emptyList()
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not list known devices", e)
+            emptyList()
+        }
+        for (device in known) {
+            try {
+                connectIQ.registerForDeviceEvents(device, deviceEventListener)
+            } catch (e: Exception) {
+                Log.w(TAG, "registerForDeviceEvents failed for ${device.friendlyName}", e)
+            }
+        }
+
+        val connected: List<IQDevice> = try {
+            connectIQ.connectedDevices ?: emptyList()
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not list connected devices", e)
+            emptyList()
+        }
+        for (device in connected) {
+            try {
+                connectIQ.registerForAppEvents(device, watchApp, appEventListener)
+                if (registeredDevices.none { it.deviceIdentifier == device.deviceIdentifier }) {
+                    registeredDevices.add(device)
+                }
+                Log.i(TAG, "Listening for commands from ${device.friendlyName}")
+            } catch (e: Exception) {
+                Log.w(TAG, "registerForAppEvents failed for ${device.friendlyName}", e)
+            }
+        }
+    }
+
+    private fun handleWatchMessages(messages: List<Any>?) {
+        if (messages == null) return
+        for (message in messages) {
+            val map = message as? Map<*, *> ?: continue
+            if (map["cmd"] != CMD_SET_SOUND_MODE) continue
+            val mode = (map["soundMode"] as? Number)?.toInt() ?: continue
+            if (mode < 0 || mode > 2) continue
+            applySoundMode(mode)
+        }
+    }
+
+    /**
+     * Applies a sound mode asked for by the watch and answers straight away.
+     * The watch is waiting on this reply, so it is sent whether the change
+     * succeeded or not — if it was refused, the watch sees the unchanged mode
+     * come back and drops its pending state.
+     */
+    private fun applySoundMode(mode: Int) {
+        val target = when (mode) {
+            1 -> AudioManager.RINGER_MODE_VIBRATE
+            2 -> AudioManager.RINGER_MODE_SILENT
+            else -> AudioManager.RINGER_MODE_NORMAL
+        }
+
+        var applied = false
+        if (togglesDnd(target) && !hasDndAccess()) {
+            Log.i(TAG, "Do Not Disturb access needed to reach ringer mode $target")
+            promptForDndAccess()
+        } else {
+            try {
+                audioManager.ringerMode = target
+                applied = true
+            } catch (e: SecurityException) {
+                Log.w(TAG, "setRingerMode($target) denied", e)
+                promptForDndAccess()
+            }
+        }
+
+        pushSoundStateToWatch()
+
+        // After the reply, so this is the status line the user is left with
+        // rather than the "sent" text pushSoundStateToWatch() writes.
+        if (applied) {
+            updateNotification(getString(R.string.status_sound_set, soundModeLabel(mode)))
+        }
+    }
+
+    /**
+     * From Android N on, ringer changes that would toggle Do Not Disturb need
+     * Notification Policy access — that means any move into silent, or out of
+     * it. Normal <-> vibrate needs nothing.
+     */
+    private fun togglesDnd(target: Int): Boolean =
+        target == AudioManager.RINGER_MODE_SILENT ||
+            audioManager.ringerMode == AudioManager.RINGER_MODE_SILENT
+
+    private fun hasDndAccess(): Boolean =
+        getSystemService(NotificationManager::class.java).isNotificationPolicyAccessGranted
+
+    /**
+     * There is no runtime dialog for Do Not Disturb access, and a service
+     * cannot start an activity in the background on Android 10+, so ask via a
+     * notification that opens the settings screen.
+     */
+    private fun promptForDndAccess() {
+        val settings = Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val pending = PendingIntent.getActivity(
+            this, 1, settings,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        val notification = Notification.Builder(this, DND_CHANNEL_ID)
+            .setContentTitle(getString(R.string.dnd_needed_title))
+            .setContentText(getString(R.string.dnd_needed_text))
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentIntent(pending)
+            .setAutoCancel(true)
+            .build()
+        getSystemService(NotificationManager::class.java)
+            .notify(DND_NOTIFICATION_ID, notification)
+    }
+
+    /**
+     * Immediate answer to a watch command. Carries the battery too when we
+     * have it, so the watch gets one consistent payload shape.
+     */
+    private fun pushSoundStateToWatch() {
+        val battery = currentBatteryIntent()
+        if (battery != null) {
+            maybeSend(battery, force = true)
+        } else {
+            sendMessageToWatch(mapOf("soundMode" to currentSoundMode()))
+        }
+    }
+
+    private fun soundModeLabel(mode: Int): String = getString(
+        when (mode) {
+            1 -> R.string.sound_vibrate
+            2 -> R.string.sound_silent
+            else -> R.string.sound_normal
+        }
+    )
+
+    private fun createNotificationChannel() {
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_ID,
+                getString(R.string.channel_name),
+                NotificationManager.IMPORTANCE_LOW
+            )
+        )
+        // The permission request has to be noticeable, unlike the ongoing
+        // status notification.
+        manager.createNotificationChannel(
+            NotificationChannel(
+                DND_CHANNEL_ID,
+                getString(R.string.dnd_channel_name),
+                NotificationManager.IMPORTANCE_HIGH
+            )
+        )
     }
 
     private fun buildNotification(text: String): Notification {

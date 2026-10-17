@@ -29,7 +29,7 @@ class PhoneBatteryApp extends Application.AppBase {
         // (Re)register the background listener so updates arrive even when
         // the widget is closed. Registration persists across reboots.
         Background.registerForPhoneAppMessageEvent();
-        return [new PhoneBatteryView()];
+        return [new PhoneBatteryView(), new SoundDelegate()];
     }
 
     function getServiceDelegate() {

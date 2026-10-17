@@ -81,10 +81,20 @@ export JAVA_HOME=$(/usr/libexec/java_home -v 17)
 
 Add the export to `~/.bashrc` or `~/.zshrc` to make it permanent.
 
+### Android SDK location
+
+`android/local.properties` is gitignored, so a fresh checkout has no `sdk.dir`.
+Either create that file or export the path:
+
+```bash
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+```
+
 ### Compile (debug APK)
 
 ```bash
 export JAVA_HOME=$(/usr/libexec/java_home -v 17)
+export ANDROID_HOME="$HOME/Library/Android/sdk"
 cd android/
 ./gradlew assembleDebug
 # APK → android/app/build/outputs/apk/debug/app-debug.apk
@@ -95,3 +105,38 @@ cd android/
 `a57999dd5a9942a5a9a35acb96ff49e1` — must match in both:
 - `garmin/manifest.xml`
 - `android/app/src/main/java/.../BatteryForwardService.kt` (`WATCH_APP_ID`)
+
+## Watch ↔ phone message protocol
+
+Both directions are plain dictionaries over `Communications`/`ConnectIQ`. The
+two sides are compiled separately, so any change here has to land in both.
+
+Phone → watch (`BatteryForwardService.sendToWatch`, read by
+`BatteryData.saveFromMessage`):
+
+| Key | Type | Notes |
+| --- | --- | --- |
+| `level` | 0..100 | May be absent in a sound-only reply |
+| `charging` | Boolean | Ignored when `level` is absent |
+| `soundMode` | 0/1/2 | Normal / Vibrate / Silent |
+
+Watch → phone (`SoundControl.request`, read by
+`BatteryForwardService.handleWatchMessages`):
+
+| Key | Type | Notes |
+| --- | --- | --- |
+| `cmd` | `"setSoundMode"` | Only command so far |
+| `soundMode` | 0/1/2 | Requested mode |
+
+The phone always answers a command immediately with the mode it actually ended
+up in — the watch does not wait for the next battery update. If the change was
+refused the unchanged mode comes back, which is what clears the watch's
+pending state.
+
+### Do Not Disturb
+
+`AudioManager.setRingerMode` needs `ACCESS_NOTIFICATION_POLICY` for any change
+that toggles DND — i.e. into silent or out of it. Normal ↔ vibrate needs
+nothing. There is no runtime dialog: the user grants it on a system settings
+screen, offered both by a button in `MainActivity` and by a notification the
+service posts the first time a change is refused.
