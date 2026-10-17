@@ -110,9 +110,10 @@ is coming from the Connect IQ store anyway. If the app gains traction, revisit
 Play — nothing about Option A forecloses it.
 
 - [ ] Pick a route before doing any store work.
-- [ ] Add a `LICENSE` file regardless. The repo has none, which leaves the
-      code technically all-rights-reserved and blocks every open-source
-      distribution channel.
+- [x] Added a `LICENSE` file (GPL-3.0, verbatim), with a notice in the README
+      that more permissive terms are available on request. Note that dual
+      licensing only works for code whose copyright is held solely by the
+      author, so incoming PRs need to agree to it — the README asks for that.
 
 ---
 

@@ -18,6 +18,9 @@ android/captures/
 *.aab
 *.keystore
 *.jks
+*.pem
+*.der
+*.p12
 !android/gradle/wrapper/gradle-wrapper.jar
 
 # Misc

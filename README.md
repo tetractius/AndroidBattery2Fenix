@@ -319,3 +319,22 @@ android/
 | Sound picker shows "Sending..." and never settles | The phone didn't answer — check Garmin Connect shows the watch connected and that Battery2Fenix is running. The watch clears the pending state as soon as any reply arrives. |
 | Sound mode row on the watch is stale | It only updates when the phone sends; the ringer-change broadcast is immediate, but a watch that was out of range catches up on the next heartbeat. |
 | Watch doesn't appear over USB on macOS | Accept the USB accessory prompt. Until then it is invisible to the system while still charging, which mimics a broken cable. |
+
+---
+
+## License
+
+Licensed under the **GNU General Public License v3.0** — see [LICENSE](LICENSE).
+In short: you are free to use, study, modify and share this, but anything you
+distribute that is built on it must also be GPL-3.0 and must ship its source.
+
+**More permissive terms are available on request.** If the GPL does not suit
+your use — for instance you would like to reuse part of this in something
+closed-source — please get in touch and I am happy to discuss alternative
+licensing. Open an issue, or email <mail@filippotrimoldi.com>.
+
+*If you are sending a pull request:* alternative terms can only be offered for
+code whose copyright I hold, so please say in the PR that you are happy for
+your contribution to be offered under both GPL-3.0 and any alternative terms I
+grant. Without that, your contribution remains GPL-3.0 only — which is fine,
+it just means those lines cannot be relicensed later.
