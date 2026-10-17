@@ -9,5 +9,6 @@
     <string id="SoundTitle">Phone sound</string>
     <string id="SoundCurrent">Current</string>
     <string id="SoundHint">SELECT to change</string>
+    <string id="SoundHintLine2">sound mode</string>
     <string id="SoundSending">Sending...</string>
 </strings>
