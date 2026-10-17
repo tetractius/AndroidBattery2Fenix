@@ -238,10 +238,91 @@ assets and paperwork.
 
 ---
 
-## 5. Loose ends
+## 5. CI and release automation
 
-- [ ] `README.md` still documents the message payload as
-      `{"level", "charging"}`. It has gained `soundMode` and a watch → phone
-      command; update it when the feature merges.
+Assessed 2026-10-17. **Not built** — the runner decision was deliberately
+deferred. Everything below is established fact, so a later session need not
+re-derive it.
+
+### Verdict
+
+A GitHub Release on tag push is automatable: compile both apps, package, and
+publish artifacts. "Actual release" to the stores is not, or not yet:
+
+- **Connect IQ Store** has no public upload API. Submission is a web form, so
+  the `.iq` can only be attached to the GitHub Release and uploaded by hand.
+- **Google Play** does have an API and off-the-shelf actions for it, but that
+  is gated behind section 3 (the API 36 bump, and probably the 12-tester rule).
+
+### Reproducibility — measured, not assumed
+
+- `.prg` output is **deterministic**. Three consecutive builds of the same
+  source produced identical checksums, matching the binary verified on real
+  hardware (`75e2fcecde3b7548e593c4d6b357c5ce` for `fenix8solar51mm`). Given
+  the same SDK version and dev key, CI can emit byte-identical artifacts to a
+  local build.
+- `.iq` output is **not** deterministic — two runs differed in both checksum
+  and size (63287 vs 63296 bytes), almost certainly zip timestamps. Its
+  contents are the same deterministic `.prg` files, so this is cosmetic, but
+  do not try to checksum-match an `.iq`.
+- Ship a `SHA256SUMS` file with each release so a tag can be verified against
+  a local build.
+
+### The obstacle: device definitions
+
+`monkeyc -d <device>` needs that device's definition installed, and these come
+**only from the GUI SDK Manager, which requires a Garmin account login**.
+There is no CLI for it — every binary in the SDK's `bin/` was checked.
+
+- Size: 2.1 MB per device, 8.4 MB for the four targets, 314 MB for all.
+- `pcolby/connectiq-sdk-manager` is **not** a headless CLI; it only repackages
+  the GUI SDK Manager as a Linux AppImage.
+- The community Docker images (`kalemena`, `cedric-dufour`,
+  `matco/action-connectiq-tester`) are built on SDK 4.1.4 with 2022-era device
+  files — far too old for a fēnix 8 on SDK 9.2.0.
+
+Three ways around it, in preference order:
+
+1. **Self-hosted runner on the dev Mac.** SDK 9.2.0, the device files and the
+   dev key are already installed — the exact toolchain that produced the
+   hardware-verified binary. No download problem, nothing of Garmin's
+   redistributed. Cost: the Mac must be awake when a tag is pushed. This is
+   the only option that *guarantees* the released `.prg` is the same bytes
+   that were tested.
+2. **GitHub-hosted + stashed device files**, seeded once from the Mac into an
+   encrypted blob or a private release asset. Runs unattended, but stores
+   Garmin's files somewhere and adds a part that can rot. Note the Actions
+   cache is evicted after 7 days idle, so it is not a durable home for them.
+3. **Split**: Android on GitHub-hosted, Garmin local. Simplest, but releases
+   become a two-step manual process.
+
+### Intended release artifacts
+
+Decided 2026-10-17:
+
+- [ ] Four release `.prg` files (all fēnix 8 targets) plus `SHA256SUMS`
+- [ ] `.iq` store package (uploaded to Garmin by hand, but traceable to a tag)
+- [ ] Android APK, debug-signed — works today, needs no keystore, and is the
+      artifact the GitHub Releases route in section 2 wants
+- [ ] Android AAB + APK, release-signed — needs the upload keystore from 3b
+      generated and stored as a CI secret first
+
+### Prerequisites
+
+- The dev key `~/garmin_dev.der` must be a CI secret, or already present on a
+  self-hosted runner. Losing it means losing the ability to update a published
+  Connect IQ app.
+- Release signing needs `android/keystore.properties` and a keystore, neither
+  of which exists yet. Until then CI can only produce the debug APK.
+- The SDK requires Java 17 or newer.
+
+---
+
+## 6. Loose ends
+
+- [x] `README.md` updated for the sound-mode feature: bidirectional diagram,
+      the `setSoundMode` command, the Do Not Disturb caveat, corrected
+      sideloading notes (the fēnix 8 is MTP-only and CLI writes fail), and
+      troubleshooting rows.
 - [ ] Decide what the store listings say about each other, and keep the two
       descriptions consistent about which app is required for what.

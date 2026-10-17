@@ -4,30 +4,39 @@ See your **Android phone's battery level on your Garmin fēnix 8** — right in 
 glance carousel you get when you press **DOWN** from the watch face, next to
 Weather, Heart Rate, Body Battery and friends.
 
+It also works the other way round: the watch shows your phone's **sound mode**
+and lets you **change it from your wrist** — normal ring, vibrate only, or
+silent — without taking the phone out of your pocket.
+
 The project has two parts, and you need **both**:
 
 | Part | Path | What it is |
 |------|------|------------|
-| Watch widget | [`garmin/`](garmin/) | A Connect IQ *glance-capable widget* ("Phone Battery"). The glance shows the battery as a 5% band, e.g. `75-80% ▮▮▮▯`; opening it shows a full-screen view with charging state and data age. |
-| Android companion | [`android/`](android/) | A small app ("Battery2Fenix") that watches the phone battery and pushes every change to the watch through the Garmin Connect Mobile app. |
+| Watch widget | [`garmin/`](garmin/) | A Connect IQ *glance-capable widget* ("Phone Battery"). The glance shows the battery as a 5% band, e.g. `75-80% ▮▮▮▯`; opening it shows a full-screen view with charging state, data age and the phone's sound mode. Pressing **START** there opens a picker to change that sound mode. |
+| Android companion | [`android/`](android/) | A small app ("Battery2Fenix") that watches the phone battery and sound mode and pushes every change to the watch through the Garmin Connect Mobile app — and applies sound-mode commands coming back from the watch. |
 
 ## How it works
 
 ```
-Android phone                        Garmin fēnix 8
-┌─────────────────────┐              ┌──────────────────────────┐
-│ Battery2Fenix app   │   Bluetooth  │ Garmin "Phone Battery"   │
-│  (foreground svc)   ├─────────────►│ background service       │
-│  battery broadcasts │  via Garmin  │  └─ saves to Storage     │
-└─────────────────────┘  Connect app │ Glance reads Storage     │
-                                     └──────────────────────────┘
+Android phone                            Garmin fēnix 8
+┌──────────────────────┐                ┌──────────────────────────┐
+│ Battery2Fenix app    │  battery +     │ Garmin "Phone Battery"   │
+│  (foreground svc)    ├──sound mode───►│ background service       │
+│                      │                │  └─ saves to Storage     │
+│  battery broadcasts  │                │ Glance / full view       │
+│  AudioManager        │◄──set sound────┤  read Storage            │
+│   .ringerMode        │     mode       │ START → sound picker     │
+└──────────────────────┘                └──────────────────────────┘
+        ▲                                          ▲
+        └────── Bluetooth, via Garmin Connect ─────┘
 ```
 
 Garmin watches cannot query the phone battery themselves — the Connect IQ API
 has no such call — so the companion app is mandatory. It sends
-`{"level": 0-100, "charging": true/false}` messages whenever the battery
-crosses into a new 5% band or the charging state changes — throttled to at
-most one message per minute, plus a 15-minute heartbeat. Every message wakes
+`{"level": 0-100, "charging": true/false, "soundMode": 0|1|2}` messages
+whenever the battery crosses into a new 5% band, the charging state changes,
+or the ringer mode changes — throttled to at most one message per minute,
+plus a 15-minute heartbeat. Every message wakes
 a small background service on the watch, so sending sparsely keeps the impact
 on the watch battery negligible; the watch displays a 5% range
 (`75-80%`) anyway, so nothing is lost. The thresholds are constants
@@ -37,6 +46,28 @@ on the watch battery negligible; the watch displays a 5% range
 closed**, stores the latest value, and the glance simply renders whatever was
 stored last — so opening the glance is instant. If the data is older than
 2 hours the glance greys it out, and the age (`5m`, `2h`, …) is always shown.
+
+### Changing the sound mode from the watch
+
+The reverse direction is a single command. Opening the full widget view and
+pressing **START** gives a picker — *Normal ring*, *Vibrate only*,
+*Silent / Mute* — and the choice is sent to the phone as
+`{"cmd": "setSoundMode", "soundMode": 0|1|2}` **immediately**, rather than
+waiting for the next battery update.
+
+The phone is the source of truth. The watch greys the requested mode out while
+the request is in flight rather than pretending it has landed; the phone
+applies it and replies with the mode it actually ended up in, which is what
+gets stored. If the change was refused, the unchanged mode comes back and the
+watch reverts on its own — the same code path, not a special case.
+
+**One permission caveat.** Moving the ringer into or out of silent toggles Do
+Not Disturb, which Android only allows with *Notification Policy access*.
+Normal ↔ vibrate needs nothing. There is no runtime permission dialog for it,
+so the app offers the grant two ways: an **"Allow Do Not Disturb access"**
+button in the app, and a notification it posts the first time a silent request
+is refused. Both open the system settings screen. Until you grant it, picking
+*Silent* on the watch simply bounces back to the previous mode.
 
 Both sides are linked by the Connect IQ app UUID
 `a57999dd5a9942a5a9a35acb96ff49e1` — it appears in `garmin/manifest.xml` and in
@@ -97,11 +128,25 @@ The `.prg` files land in `garmin/build/`.
 
 #### Sideloading
 
-3. Connect the watch over USB (it mounts as a drive) and copy the `.prg`
-   into the watch's `/GARMIN/Apps` folder. Unplug — done.
+3. Connect the watch over USB and copy the `.prg` into the watch's
+   `GARMIN/Apps` folder. **Unplug** — disconnecting is what makes the watch
+   scan that folder and install the app.
 
-   *If your fēnix 8 mounts in MTP mode on Linux/macOS, use
-   [Android File Transfer/OpenMTP] or Garmin Express to copy the file.*
+   *Notes from doing this on macOS with a fēnix 8 Solar:*
+
+   * The fēnix 8 is **MTP-only** — there is no mass-storage USB mode, so no
+     `GARMIN` volume appears in Finder. Use
+     [OpenMTP](https://openmtp.ganeshrvel.com/) and drag the file across.
+     Garmin Express cannot sideload an arbitrary `.prg`.
+   * The command-line MTP tools do **not** work for writing: `libmtp`'s
+     `mtp-sendfile` cannot resolve a storage id, and `aft-mtp-cli`'s `put`
+     hangs. *Reading* works with both, so you can verify a copy by pulling the
+     file back off the watch and comparing checksums.
+   * macOS blocks the watch until you accept its **USB accessory** prompt. Before
+     you do, the watch does not appear at all — not even in `ioreg` — while
+     still charging happily, which looks exactly like a dead cable.
+   * Only one MTP client can hold the device at a time, so quit OpenMTP before
+     using any CLI tool against it.
 
 4. On the watch, press **DOWN** from the watch face to open the glance
    carousel — "Phone Battery" is now in the list (hold **UP** →
@@ -152,10 +197,23 @@ cd android/
 ```
 
 The APK lands at `android/app/build/outputs/apk/debug/app-debug.apk`.
-4. Launch **Battery2Fenix** on the phone. It asks for notification permission
-   (needed for its persistent "forwarding" notification) and starts the
-   forwarding service automatically. The notification shows what was last
-   sent, e.g. *"78% sent at 14:02"*.
+
+#### Then, either way
+
+Launch **Battery2Fenix** on the phone. It asks for notification and Bluetooth
+permissions (the first is needed for its persistent "forwarding" notification)
+and starts the forwarding service automatically. The notification shows what
+was last sent, e.g. *"78% sent at 14:02"*, or *"Sound set to vibrate only from
+watch"* after a command.
+
+If you want to change the phone to **silent** from the watch, also tap
+**"Allow Do Not Disturb access"** and grant it on the settings screen that
+opens. See [Changing the sound mode from the watch](#changing-the-sound-mode-from-the-watch).
+
+*Upgrading an existing install?* Debug APKs are signed with a per-machine key,
+so installing one built on a different computer fails with
+`INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Uninstall the old copy first; the app
+stores nothing, so you lose only the Do Not Disturb grant.
 
 ### Making it survive in the background
 
@@ -176,6 +234,9 @@ Xiaomi, …) may still kill it. If updates stop:
 3. Phone: Battery2Fenix running (persistent notification visible).
 4. Within seconds the glance should show your phone's battery. Unplug/plug
    the charger to force an immediate update.
+5. Open the widget (select the glance, press **START**) and press **START**
+   again — the sound picker appears, and choosing an entry should change the
+   phone's ringer within about a second.
 
 ---
 
@@ -236,10 +297,11 @@ garmin/
     PhoneBatteryBackgroundService.mc  # receives phone messages in background
     PhoneBatteryGlanceView.mc      # the DOWN-button glance
     PhoneBatteryView.mc            # full-screen widget view
+    SoundControl.mc                # sound-mode picker, transmit, pending state
     BatteryData.mc                 # shared storage + formatting helpers
 android/
   app/src/main/java/io/github/tetractius/battery2fenix/
-    MainActivity.kt                # minimal UI, start/stop
+    MainActivity.kt                # minimal UI, start/stop, DND grant button
     BatteryForwardService.kt       # foreground service, Connect IQ messaging
     BootReceiver.kt                # restart after reboot
 ```
@@ -253,3 +315,7 @@ android/
 | Value goes grey / age keeps growing | Android killed the service — set battery usage to Unrestricted and reopen the app. |
 | Gradle can't find the Garmin SDK | Make sure Maven Central isn't blocked; the dependency is `com.garmin.connectiq:ciq-companion-app-sdk:2.2.0@aar`. |
 | Build error on an added device id | That model's device files aren't downloaded in the SDK Manager, or the id is misspelled. |
+| Picking *Silent* on the watch snaps back to the previous mode | Do Not Disturb access isn't granted. Tap "Allow Do Not Disturb access" in the phone app, or the notification it posted. Normal ↔ vibrate works without it. |
+| Sound picker shows "Sending..." and never settles | The phone didn't answer — check Garmin Connect shows the watch connected and that Battery2Fenix is running. The watch clears the pending state as soon as any reply arrives. |
+| Sound mode row on the watch is stale | It only updates when the phone sends; the ringer-change broadcast is immediate, but a watch that was out of range catches up on the next heartbeat. |
+| Watch doesn't appear over USB on macOS | Accept the USB accessory prompt. Until then it is invisible to the system while still charging, which mimics a broken cable. |
