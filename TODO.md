@@ -15,11 +15,10 @@ merged.
 Watch-initiated phone sound mode control (Normal / Vibrate / Silent), commit
 `58bc3c7` on `feature/watch-sound-mode-control`.
 
-**Tested on real hardware 2026-10-17 and it works.** fēnix 8 Solar
-51mm (recent firmware) + an Android 16 phone. The picker
-opens, the command reaches the phone, and the ringer really changes —
-verified as `mode_ringer = 0` with RING/NOTIFICATION/SYSTEM/DTMF muted, not
-just by looking at the watch.
+**Tested on real hardware 2026-10-17 and it works.** A fēnix 8 Solar 51mm
+paired with an Android 16 phone. The picker opens, the command reaches the
+phone, and the ringer really changes — verified as `mode_ringer = 0` with
+RING/NOTIFICATION/SYSTEM/DTMF muted, not just by looking at the watch.
 
 - [x] `BehaviorDelegate.onSelect` fires in the widget's full view on real
       fēnix 8 hardware. This was the one assumption that could have sunk the
