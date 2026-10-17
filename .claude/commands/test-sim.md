@@ -124,15 +124,30 @@ adb shell settings get global mode_ringer
 adb shell dumpsys audio | grep -i ringer
 ```
 
-The `allow_dnd` command is the non-interactive way to grant Notification Policy
-access (needed for anything touching Silent). **I have not verified that this
-command exists on API 36** — if it fails, grant it through the app's own
-"Allow Do Not Disturb access" button on the emulator screen, which you can tap
-with `adb shell input tap`, or via
-`adb shell am start -a android.settings.NOTIFICATION_POLICY_ACCESS_SETTINGS`.
+Verified on real hardware (Android 16, 2026-10-17), so you can skip the
+discovery and use these directly:
 
-Whichever read command gives a stable, distinct value per mode is your
-assertion for Steps 5 and 6. Write down the three values before proceeding.
+- `settings get global mode_ringer` mirrors the `AudioManager` constants
+  exactly: **0 = silent, 1 = vibrate, 2 = normal**. Use it as the assertion.
+- `adb shell cmd notification allow_dnd <pkg>` is a **silent no-op** — it
+  prints nothing and changes nothing. Do not rely on it.
+- `adb shell settings put global enabled_notification_policy_access_packages
+  <pkg>` **does** work, and the framework honours it even though it is written
+  behind its back. This is how to grant DND access non-interactively.
+- `dumpsys audio | grep "ringer mode muted streams"` corroborates: `0x0` when
+  normal, `0x126` (RING/NOTIFICATION/SYSTEM/DTMF) when silent.
+
+Two gotchas that cost real time on the hardware run:
+
+- A fresh install has notifications **denied** (`appops` shows
+  `POST_NOTIFICATION: ignore`), so the foreground-service and DND-prompt
+  notifications silently never appear. Grant it:
+  `adb shell pm grant <pkg> android.permission.POST_NOTIFICATIONS`.
+- `BLUETOOTH_CONNECT` is also ungranted, and `MainActivity` puts up a
+  permission dialog on launch that blocks the service from starting — with no
+  log output, so it looks like a hang. Grant it over adb and relaunch rather
+  than waiting:
+  `adb shell pm grant <pkg> android.permission.BLUETOOTH_CONNECT`.
 
 ## Step 5 — Headless tests first
 
