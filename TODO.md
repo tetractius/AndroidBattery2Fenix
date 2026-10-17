@@ -15,22 +15,34 @@ merged.
 Watch-initiated phone sound mode control (Normal / Vibrate / Silent), commit
 `58bc3c7` on `feature/watch-sound-mode-control`.
 
-- [ ] Run `/test-sim` and record which of its five cases actually pass.
-      Headless unit tests first; only the `onSelect`-fires-and-menu-renders
-      check needs a human at the simulator.
-- [ ] Sideload to the real fēnix 8 and test against a real phone. The
-      simulator path uses `IQConnectType.TETHERED`, which is **not** how the
-      shipped app talks to a watch, so a green simulator run does not prove
-      the BLE path works.
+**Tested on real hardware 2026-10-17 and it works.** fēnix 8 Solar
+51mm (recent firmware) + an Android 16 phone. The picker
+opens, the command reaches the phone, and the ringer really changes —
+verified as `mode_ringer = 0` with RING/NOTIFICATION/SYSTEM/DTMF muted, not
+just by looking at the watch.
+
+- [x] `BehaviorDelegate.onSelect` fires in the widget's full view on real
+      fēnix 8 hardware. This was the one assumption that could have sunk the
+      design; no need to convert `type="widget"` to `type="watch-app"`.
+- [x] Fixed layout clipping found during that test: the hint was at 94% of
+      screen height, where the 280x280 bezel leaves less chord than the text
+      needs. Now a two-line hint at 80%/89%.
 - [ ] Confirm the Do Not Disturb prompt appears and is actionable on a real
-      phone when Silent is picked without the grant.
+      phone when Silent is picked *without* the grant. Not yet seen, because
+      the grant was in place for the test — needs DND access revoked first.
+- [ ] Run `/test-sim` if you want the headless regression tests. Lower value
+      now that the real round trip is proven, but the `saveFromMessage` unit
+      tests still guard logic the hardware test does not isolate.
 - [ ] Open a PR and merge to `main`.
 
-Highest-risk assumption, still unverified: that `BehaviorDelegate.onSelect`
-fires in the widget's full view on fēnix 8 hardware. If it does not, the
-picker is unreachable and the feature needs rethinking — the fallback would
-be converting `type="widget"` to `type="watch-app"` in `garmin/manifest.xml`,
-which changes where the app appears on the watch.
+Note for future testing: sideloading went via **OpenMTP**, not the CLI. The
+fēnix 8 is MTP-only (no mass-storage USB mode), and both libmtp's
+`mtp-sendfile` and `aft-mtp-cli`'s `put` fail to write to it — libmtp cannot
+resolve a storage id, and `aft-mtp-cli` hangs. *Reading* works with either,
+so a copy can be verified by pulling the file back and comparing checksums.
+Drop the `.prg` into `GARMIN/Apps` and unplug to trigger installation. Also:
+macOS blocks the watch entirely until its USB accessory prompt is accepted,
+and the device simply does not appear in `ioreg` before that.
 
 ---
 
@@ -181,6 +193,10 @@ count, and if one tester drops out the counter resets.
 - [ ] Note `ACCESS_NOTIFICATION_POLICY` in the listing description so the DND
       prompt does not surprise users. It is not on Play's sensitive-permission
       declaration list, so no separate form is needed.
+- Verified 2026-10-17 on Android 16: `adb shell settings put global
+  enabled_notification_policy_access_packages <pkg>` **does** grant DND access
+  and the framework honours it. `adb shell cmd notification allow_dnd <pkg>` is
+  a silent no-op. Useful for automated testing, not for end users.
 - [ ] The `<queries>` entry targets the Garmin Connect package specifically,
       not `QUERY_ALL_PACKAGES`, so it needs no justification.
 
