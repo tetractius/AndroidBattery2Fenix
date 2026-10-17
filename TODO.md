@@ -12,8 +12,8 @@ merged.
 
 ## 1. Finish the sound mode feature
 
-Watch-initiated phone sound mode control (Normal / Vibrate / Silent), commit
-`58bc3c7` on `feature/watch-sound-mode-control`.
+Watch-initiated phone sound mode control (Normal / Vibrate / Silent), merged
+to `main` in PR #4.
 
 **Tested on real hardware 2026-10-17 and it works.** A fēnix 8 Solar 51mm
 paired with an Android 16 phone. The picker opens, the command reaches the
